@@ -230,6 +230,33 @@ async function openFile() {
   }
 }
 
+// Open a file by absolute path (used by .md file-association launches).
+async function openPath(path: string) {
+  try {
+    const content = await readFile(path);
+    tabs.openOrFocus(path, content);
+    editor.setDoc(content);
+    updatePreview();
+    editor.focus();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+// Wire up OS "Open with" / double-click delivery. Registers the live event
+// listener before draining any path captured during cold start, so a path
+// arriving before the webview was ready is never lost.
+async function initFileAssociation() {
+  if (!inTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  const { listen } = await import("@tauri-apps/api/event");
+  await listen<string>("open-file", (e) => {
+    if (e.payload) openPath(e.payload);
+  });
+  const pending = await invoke<string | null>("get_pending_file");
+  if (pending) openPath(pending);
+}
+
 async function saveFile(forceDialog: boolean) {
   const tab = tabs.active;
   let path = tab.path;
@@ -302,3 +329,4 @@ applyTheme(theme);
 renderTabs();
 updatePreview();
 editor.focus();
+initFileAssociation();
