@@ -27,6 +27,27 @@ describe("renderMarkdown (GFM)", () => {
     expect(html).toContain("<pre><code");
   });
 
+  it("syntax-highlights a fenced block with a language", () => {
+    const html = renderMarkdown("```python\ndef f(x):\n    return x + 1\n```");
+    expect(html).toContain('class="hljs language-python"');
+    expect(html).toContain('class="hljs-keyword"'); // `def`/`return` tokens
+  });
+
+  it("highlights C blocks too", () => {
+    const html = renderMarkdown("```c\nint main(void){ return 0; }\n```");
+    expect(html).toContain('class="hljs language-c"');
+    expect(html).toContain("hljs-");
+  });
+
+  it("auto-highlights when the language is missing or misspelled", () => {
+    const typo = renderMarkdown("```pyhton\ndef f():\n    return 1\n```");
+    const none = renderMarkdown("```\nSELECT * FROM users WHERE id = 1;\n```");
+    // Still produces an hljs code block (not plain escaped text).
+    expect(typo).toContain('<code class="hljs');
+    expect(typo).toContain("hljs-");
+    expect(none).toContain('<code class="hljs');
+  });
+
   it("strips dangerous markup", () => {
     const html = renderMarkdown('<script>alert(1)</script>\n\n[x](javascript:alert(1))');
     // No executable script survives sanitization.

@@ -25,14 +25,29 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true,
   highlight(code, lang): string {
+    let inner: string;
+    let cls = "hljs";
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return hljs.highlight(code, { language: lang }).value;
+        inner = hljs.highlight(code, { language: lang }).value;
+        cls += ` language-${lang}`;
       } catch {
-        /* fall through to escaped plain text */
+        inner = md.utils.escapeHtml(code);
+      }
+    } else {
+      // No fence language, or an unknown/misspelled one (e.g. ```pyhton):
+      // fall back to highlight.js auto-detection so it still gets colored.
+      try {
+        const auto = hljs.highlightAuto(code);
+        inner = auto.value;
+        if (auto.language) cls += ` language-${auto.language}`;
+      } catch {
+        inner = md.utils.escapeHtml(code);
       }
     }
-    return md.utils.escapeHtml(code);
+    // Returning a full <pre> makes markdown-it skip its own wrapper, so the
+    // <code> carries the `hljs` class the theme stylesheet styles.
+    return `<pre><code class="${cls}">${inner}</code></pre>`;
   },
 }).use(taskLists, { enabled: true, label: true });
 
