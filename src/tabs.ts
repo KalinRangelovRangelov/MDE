@@ -103,3 +103,9 @@ export class TabManager {
 function basename(p: string): string {
   return p.split(/[\\/]/).pop() || p;
 }
+
+/** Directory portion of a path (no trailing slash). "" if there is none. */
+export function dirname(p: string): string {
+  const i = p.search(/[\\/][^\\/]*$/);
+  return i < 0 ? "" : p.slice(0, i);
+}

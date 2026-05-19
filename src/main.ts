@@ -1,7 +1,7 @@
 import "./styles.css";
 import { Editor } from "./editor";
 import { renderMarkdown, setCodeTheme, type Theme } from "./preview";
-import { TabManager, isDirty } from "./tabs";
+import { TabManager, isDirty, dirname } from "./tabs";
 import { toolbar, palette } from "./library";
 
 // ---- Tauri bridges (guarded so the UI still runs in a plain browser) -------
@@ -66,7 +66,24 @@ function onEditorChange(doc: string) {
 }
 
 function updatePreview() {
-  previewEl.innerHTML = renderMarkdown(tabs.active.doc);
+  const p = tabs.active.path;
+  previewEl.innerHTML = renderMarkdown(tabs.active.doc, p ? dirname(p) : undefined);
+  if (inTauri) rewriteLocalImages();
+}
+
+// Local images are rendered with a `data-rel-src` absolute path by preview.ts;
+// convert those to asset-protocol URLs the webview can actually load.
+let convertFileSrcFn: ((p: string) => string) | undefined;
+async function rewriteLocalImages() {
+  const imgs = previewEl.querySelectorAll<HTMLImageElement>("img[data-rel-src]");
+  if (imgs.length === 0) return;
+  if (!convertFileSrcFn) {
+    ({ convertFileSrc: convertFileSrcFn } = await import("@tauri-apps/api/core"));
+  }
+  imgs.forEach((img) => {
+    const abs = img.dataset.relSrc;
+    if (abs) img.src = convertFileSrcFn!(abs);
+  });
 }
 
 // ---- Tab bar --------------------------------------------------------------

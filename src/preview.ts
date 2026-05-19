@@ -51,9 +51,48 @@ const md = new MarkdownIt({
   },
 }).use(taskLists, { enabled: true, label: true });
 
-/** Render Markdown source to sanitized HTML safe to inject into the preview. */
-export function renderMarkdown(source: string): string {
-  const raw = md.render(source);
+// ---- Local image resolution ----------------------------------------------
+// Markdown files reference images with paths relative to the file's own
+// directory, but the preview lives at the webview origin. We resolve such
+// paths to an absolute path and stash it in `data-rel-src`; the Tauri layer
+// (main.ts) converts that to an asset URL after sanitization. Keeping it a
+// data-* attribute means DOMPurify preserves it and we never touch its
+// URL-scheme allowlist. This file stays Tauri-agnostic for unit tests.
+
+function isExternal(src: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
+}
+function isAbsolute(src: string): boolean {
+  return src.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(src);
+}
+function resolvePath(baseDir: string, rel: string): string {
+  const combined = isAbsolute(rel) ? rel : `${baseDir}/${rel}`;
+  const lead = combined.startsWith("/") ? "/" : ""; // preserve POSIX root
+  const out: string[] = [];
+  for (const p of combined.split(/[\\/]+/)) {
+    if (p === "" || p === ".") continue;
+    if (p === "..") out.pop();
+    else out.push(p);
+  }
+  return lead + out.join("/");
+}
+
+const defaultImage = md.renderer.rules.image!;
+md.renderer.rules.image = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const src = token.attrGet("src");
+  if (src && env?.baseDir && !isExternal(src) && !src.startsWith("data:")) {
+    token.attrSet("data-rel-src", resolvePath(env.baseDir, src));
+  }
+  return defaultImage(tokens, idx, options, env, self);
+};
+
+/**
+ * Render Markdown source to sanitized HTML safe to inject into the preview.
+ * `baseDir` (the open file's directory) enables local-image resolution.
+ */
+export function renderMarkdown(source: string, baseDir?: string): string {
+  const raw = md.render(source, baseDir ? { baseDir } : {});
   return DOMPurify.sanitize(raw, {
     ADD_ATTR: ["target"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],

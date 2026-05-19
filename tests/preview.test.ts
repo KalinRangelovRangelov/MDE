@@ -48,6 +48,32 @@ describe("renderMarkdown (GFM)", () => {
     expect(none).toContain('<code class="hljs');
   });
 
+  it("resolves relative image paths against the file directory", () => {
+    const html = renderMarkdown(
+      "![s](docs/screenshots/dark.png)",
+      "/Users/me/proj",
+    );
+    expect(html).toContain('data-rel-src="/Users/me/proj/docs/screenshots/dark.png"');
+  });
+
+  it("collapses .. and . segments in image paths", () => {
+    const html = renderMarkdown("![s](../img/./a.png)", "/Users/me/proj/sub");
+    expect(html).toContain('data-rel-src="/Users/me/proj/img/a.png"');
+  });
+
+  it("leaves remote and data image URLs untouched", () => {
+    const remote = renderMarkdown("![s](https://x.test/a.png)", "/Users/me");
+    const data = renderMarkdown("![s](data:image/png;base64,AAAA)", "/Users/me");
+    expect(remote).not.toContain("data-rel-src");
+    expect(remote).toContain('src="https://x.test/a.png"');
+    expect(data).not.toContain("data-rel-src");
+  });
+
+  it("does not add data-rel-src when no base directory is known", () => {
+    const html = renderMarkdown("![s](img/a.png)");
+    expect(html).not.toContain("data-rel-src");
+  });
+
   it("strips dangerous markup", () => {
     const html = renderMarkdown('<script>alert(1)</script>\n\n[x](javascript:alert(1))');
     // No executable script survives sanitization.
