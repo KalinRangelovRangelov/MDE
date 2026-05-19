@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Editor — Build Progress</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--ink:#e6e8ec;--muted:#9aa3b2;--accent:#6ea8fe;--line:#262b35;--ok:#3fb950;--run:#d29922;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:28px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 28px}
+  .bar{height:10px;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:8px 0 28px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--ok))}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid var(--line);padding:10px 14px;text-align:left;vertical-align:top}
+  th{background:var(--panel)}
+  .s{font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .done{background:rgba(63,185,80,.15);color:var(--ok)}
+  .run{background:rgba(210,153,34,.15);color:var(--run)}
+  .wait{background:rgba(72,79,88,.25);color:var(--muted)}
+  footer{margin-top:32px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+  code{background:var(--panel);padding:2px 6px;border-radius:5px;font:13px ui-monospace,Menlo,monospace}
+  .ok{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Markdown Editor — Build Progress</h1>
+  <p class="sub">Status: <span class="ok">COMPLETE</span> · blank-window bug fixed &amp; verified in-browser · last update: 2026-05-19</p>
+  <div class="bar"><i style="width:100%"></i></div>
+  <table>
+    <tr><th>#</th><th>Phase</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>0</td><td>Progress tracking</td><td><span class="s done">done</span></td><td>This file.</td></tr>
+    <tr><td>1</td><td>Scaffold (Tauri 2 + Vite + TS)</td><td><span class="s done">done</span></td><td>124 npm pkgs installed; Rust deps compile.</td></tr>
+    <tr><td>2</td><td>Editor core (CodeMirror 6)</td><td><span class="s done">done</span></td><td><code>src/editor.ts</code> — markdown mode, line wrap, snippet API.</td></tr>
+    <tr><td>3</td><td>Preview + view modes</td><td><span class="s done">done</span></td><td>markdown-it GFM + highlight.js + DOMPurify; split/source/preview + scroll sync.</td></tr>
+    <tr><td>4</td><td>Tag library (toolbar + palette)</td><td><span class="s done">done</span></td><td>12-button toolbar + 5-category sidebar palette; cursor/selection-aware.</td></tr>
+    <tr><td>5</td><td>File ops (Rust)</td><td><span class="s done">done</span></td><td><code>read_file</code>/<code>write_file</code> commands + native dialogs.</td></tr>
+    <tr><td>6</td><td>Multi-tab</td><td><span class="s done">done</span></td><td>Tab bar, per-tab dirty state, unsaved-changes &amp; quit guards.</td></tr>
+    <tr><td>7</td><td>Tests</td><td><span class="s done">done</span></td><td><span class="ok">10/10 passing</span> (render + tab-state); frontend build OK.</td></tr>
+    <tr><td>8</td><td>Packaging</td><td><span class="s done">done</span></td><td>Built <code>Markdown Editor.app</code> (4.0&nbsp;MB) + <code>.dmg</code> (2.7&nbsp;MB) at <code>src-tauri/target/release/bundle/</code>. Tauri's Finder-scripted DMG step is unavailable in a headless session, so the DMG is produced with <code>hdiutil</code> (see README).</td></tr>
+  </table>
+  <p style="margin-top:18px;color:var(--muted);font-size:14px">
+    <strong style="color:var(--ink)">Post-build fix:</strong> first bundle showed a blank window —
+    <code>TabManager</code>'s constructor fired its <code>onChange</code> callback into a
+    <code>const</code> still in the temporal dead zone, crashing module load. Root-caused via
+    browser console, fixed (constructor no longer notifies), added a regression test, and
+    re-verified in a real browser (editor→preview pipeline working). <strong style="color:var(--ink)">11/11 tests passing.</strong>
+  </p>
+  <footer>Plan: <code>plan.html</code> · Source: <code>/Users/i42/Developer/MarkdownEditor/cld</code> · Run dev: <code>npm run tauri dev</code></footer>
+</div>
+</body>
+</html>

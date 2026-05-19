@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Editor — Implementation Plan</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--ink:#e6e8ec;--muted:#9aa3b2;--accent:#6ea8fe;--line:#262b35;--ok:#3fb950;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:30px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 32px}
+  h2{font-size:20px;margin:40px 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  h3{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+  code{background:var(--panel);padding:2px 6px;border-radius:5px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto}
+  pre code{background:none;padding:0}
+  ul,ol{padding-left:22px}
+  li{margin:6px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:16px 0}
+  .pill{display:inline-block;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:0 6px 6px 0}
+  table{border-collapse:collapse;width:100%;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:8px 12px;text-align:left}
+  th{background:var(--panel)}
+  .muted{color:var(--muted)}
+  .phase{counter-reset:none}
+  footer{margin-top:48px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Markdown Editor — Implementation Plan</h1>
+  <p class="sub">Cross-platform desktop markdown viewer &amp; editor · Drafted 2026-05-19</p>
+
+  <h2>Context</h2>
+  <div class="card">
+    <p>The user wants a cross-platform desktop application to <strong>view and edit Markdown</strong>. Core needs:
+    a browsable "library" of all Markdown constructs that can be inserted into the text with one action;
+    side-by-side <em>source</em> and <em>preview</em> with the ability to show either one alone or both;
+    and standard file operations (new, open, save, save&nbsp;as) across multiple open documents.
+    It must run on macOS, Windows, and Linux, distributed as packaged installers.</p>
+    <p class="muted">Outcome: a lightweight, fast native-feeling editor that makes GitHub-Flavored Markdown
+    easy to write through discoverable formatting tools and a faithful live preview.</p>
+  </div>
+
+  <h2>Confirmed Decisions</h2>
+  <p>
+    <span class="pill">Stack: Tauri 2 (Rust) + TypeScript/Vite</span>
+    <span class="pill">Editor: CodeMirror 6</span>
+    <span class="pill">Render: markdown-it + GFM + highlight.js + DOMPurify</span>
+    <span class="pill">Tag library: toolbar + sidebar palette</span>
+    <span class="pill">Views: Split / Source / Preview toggle</span>
+    <span class="pill">Flavor: GitHub Flavored Markdown</span>
+    <span class="pill">Files: multi-tab</span>
+    <span class="pill">Distribution: installers (.dmg/.msi/.AppImage)</span>
+  </p>
+
+  <h2>Architecture</h2>
+<pre><code>┌─────────────────────────────────────────────┐
+│  Frontend (TypeScript, Vite)                  │
+│  ┌──────────┬──────────────┬───────────────┐ │
+│  │ Tab bar  │ Toolbar      │ View toggle   │ │
+│  ├──────────┴──────────────┴───────────────┤ │
+│  │ Sidebar   │  Editor (CM6)  │  Preview    │ │
+│  │ palette   │  (source)      │  (rendered) │ │
+│  └───────────┴────────────────┴─────────────┘ │
+└──────────────────┬────────────────────────────┘
+                    │ Tauri IPC (invoke / dialog / fs)
+┌──────────────────▼────────────────────────────┐
+│  Rust backend: open, save, save-as, dialogs    │
+└────────────────────────────────────────────────┘</code></pre>
+
+  <h3>Components</h3>
+  <ul>
+    <li><strong>Tab manager</strong> — multiple documents; each tab: file path, buffer, dirty flag, cursor/scroll state; close prompts on unsaved changes.</li>
+    <li><strong>Editor pane</strong> — CodeMirror 6 per active tab; debounced change events drive the preview.</li>
+    <li><strong>Preview pane</strong> — markdown-it render; scroll-synced with the editor in split mode.</li>
+    <li><strong>Tag library</strong> — toolbar (bold, italic, headings, link, code, list, quote…) + categorized sidebar palette covering every GFM construct (tables, task lists, fenced code, images, links, HR…). Both wrap the selection or insert at the cursor.</li>
+    <li><strong>View controller</strong> — Split (default, synced) / Source-only / Preview-only.</li>
+    <li><strong>File service (Rust)</strong> — New, Open, Save, Save As via native dialogs; UTF-8 read/write; returns filename for the tab title.</li>
+  </ul>
+
+  <h3>Data flow</h3>
+  <p>Keystroke → CodeMirror state → debounced (~150&nbsp;ms) → markdown-it render → DOMPurify → preview DOM.
+  Save → IPC <code>save_file(path, content)</code> → Rust writes → dirty flag cleared.</p>
+
+  <h3>Error handling</h3>
+  <ul>
+    <li>File read/write errors surface as non-blocking toast notifications.</li>
+    <li>Unsaved-changes guard on tab close and app quit.</li>
+    <li>Preview sandboxed + sanitized — no script execution, no remote-content surprises.</li>
+  </ul>
+
+  <h2>Implementation Phases</h2>
+  <table>
+    <tr><th>#</th><th>Phase</th><th>Deliverable</th></tr>
+    <tr><td>0</td><td>Progress tracking</td><td><code>progress.html</code> created and updated after every phase</td></tr>
+    <tr><td>1</td><td>Scaffold</td><td>Tauri 2 + Vite + TS project; window opens; build works on this OS</td></tr>
+    <tr><td>2</td><td>Editor core</td><td>CodeMirror 6 markdown editor in a single pane</td></tr>
+    <tr><td>3</td><td>Preview + view modes</td><td>markdown-it GFM render, split/source/preview toggle, scroll sync</td></tr>
+    <tr><td>4</td><td>Tag library</td><td>Toolbar + sidebar palette with snippet insertion</td></tr>
+    <tr><td>5</td><td>File ops</td><td>Rust new/open/save/save-as + native dialogs</td></tr>
+    <tr><td>6</td><td>Multi-tab</td><td>Tab bar, per-tab state, unsaved-changes guard</td></tr>
+    <tr><td>7</td><td>Tests</td><td>Unit (snippet/render/tab-state), Rust file round-trip, manual E2E checklist</td></tr>
+    <tr><td>8</td><td>Packaging</td><td><code>tauri build</code> → installers; build/run docs per OS</td></tr>
+  </table>
+
+  <h2>Testing</h2>
+  <ul>
+    <li><strong>Unit:</strong> snippet-insertion (cursor/selection wrapping), markdown render per GFM construct, tab/dirty-state reducer.</li>
+    <li><strong>Rust:</strong> file read/write round-trip.</li>
+    <li><strong>Manual E2E:</strong> open → edit → toggle views → insert from palette → multi-tab → save/save-as → unsaved guard, per OS.</li>
+    <li><strong>Packaging:</strong> <code>tauri build</code> produces installers on each platform.</li>
+  </ul>
+
+  <h2>Out of Scope (YAGNI)</h2>
+  <p class="muted">HTML/PDF export, plugins, math/Mermaid, cloud sync, themes beyond basic light/dark.</p>
+
+  <footer>
+    Progress will be tracked live in <code>progress.html</code> (same directory), updated frequently during implementation.
+  </footer>
+
+</div>
+</body>
+</html>

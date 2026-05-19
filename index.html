@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Editor</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="tabbar"></div>
+
+      <div id="toolbar"></div>
+
+      <div id="body">
+        <aside id="palette"></aside>
+        <main id="panes">
+          <section id="editor-pane"><div id="editor"></div></section>
+          <div id="splitter"></div>
+          <section id="preview-pane"><div id="preview" class="markdown-body"></div></section>
+        </main>
+      </div>
+
+      <div id="toasts"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
