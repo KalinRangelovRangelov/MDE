@@ -90,6 +90,34 @@ Build on each target OS to produce that platform's installer.
 > Running `npm run tauri build` in a normal desktop session produces the
 > styled DMG directly.
 
+## Releasing
+
+Releases are built and published automatically by the GitHub Actions workflow
+[`.github/workflows/release.yml`](.github/workflows/release.yml). It runs
+[`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) on a
+macOS / Windows / Linux matrix and uploads the installers to a GitHub Release.
+
+**Trigger:** push a `v*` tag (it also supports manual `workflow_dispatch`):
+
+```bash
+git tag v0.1
+git push origin v0.1
+```
+
+This produces a GitHub Release named `MDE v0.1` with:
+
+| Platform | Asset                                   |
+| -------- | --------------------------------------- |
+| macOS    | `MDE_0.1.0_universal.dmg` (Intel + ARM) |
+| Windows  | `.msi` and NSIS `.exe`                   |
+| Linux    | `.AppImage` and `.deb`                   |
+
+The internal version stays semver `0.1.0` (in `package.json`,
+`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`); the tag/release name is
+the human-facing label. Builds are unsigned (no Apple/Windows certificates), so
+users get a first-launch OS warning — add signing secrets to the workflow to
+remove it.
+
 ## Keyboard shortcuts
 
 | Action            | Shortcut            |
