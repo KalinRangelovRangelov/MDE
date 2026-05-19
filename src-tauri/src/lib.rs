@@ -61,16 +61,29 @@ pub fn run() {
     // Path passed at cold start (Windows/Linux argv). macOS uses RunEvent::Opened.
     let startup_file = file_from_args(&std::env::args().collect::<Vec<_>>());
 
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // Fires in the FIRST instance when a second launch happens
-            // (Windows/Linux "Open with" while already running).
-            if let Some(path) = file_from_args(&argv) {
-                deliver_path(app, path);
-            } else if let Some(w) = app.get_webview_window("main") {
-                let _ = w.set_focus();
-            }
-        }))
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+
+    // macOS routes file opens to the single Launch-Services instance via
+    // RunEvent::Opened. The single-instance plugin forwards only argv (never
+    // the opened file on macOS) and exit(0)s the file-opening process before
+    // its RunEvent::Opened is handled, so register it on Windows/Linux only.
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(
+            |app, argv, _cwd| {
+                // Fires in the FIRST instance when a second launch happens
+                // (Windows/Linux "Open with" while already running).
+                if let Some(path) = file_from_args(&argv) {
+                    deliver_path(app, path);
+                } else if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_focus();
+                }
+            },
+        ));
+    }
+
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .manage(PendingFile::default())
         .setup(move |app| {

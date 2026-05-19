@@ -16,9 +16,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# macOS routes file-association opens to the single Launch-Services instance
+# via RunEvent::Opened; the single-instance plugin breaks that, so it is
+# compiled for Windows/Linux only.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+tauri-plugin-single-instance = "2"
 
 [profile.release]
 panic = "abort"
