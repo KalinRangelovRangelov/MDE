@@ -43,7 +43,23 @@
       }
     ],
     "resources": {
-      "icons/md-document.icns": "md-document.icns"
+      "icons/md-document.icns": "md-document.icns",
+      "icons/md-document.ico": "md-document.ico"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/icons/hicolor/scalable/mimetypes/text-markdown.svg": "icons/md-document.svg",
+          "/usr/share/icons/hicolor/256x256/mimetypes/text-markdown.png": "icons/md-document-256.png",
+          "/usr/share/mime/packages/mde-markdown.xml": "linux/mde-markdown.xml"
+        },
+        "postInstallScript": "linux/deb-postinst.sh"
+      }
     },
     "icon": [
       "icons/32x32.png",
