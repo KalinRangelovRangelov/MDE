@@ -19,6 +19,14 @@ The tag-library palette — one-click insertion of every Markdown construct:
 
 ![Tag library sidebar palette](docs/screenshots/palette.png)
 
+## Download
+
+Prebuilt installers for macOS, Windows, and Linux are published on the
+[Releases page](https://github.com/KalinRangelovRangelov/MDE/releases).
+
+> The macOS build is ad-hoc signed (no Apple Developer ID). On first launch,
+> right-click the app and choose **Open** to bypass the Gatekeeper warning.
+
 ## Features
 
 - **Source + Preview** with three view modes: split (synced scroll), source-only,
