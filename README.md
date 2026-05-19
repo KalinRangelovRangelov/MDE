@@ -3,6 +3,22 @@
 **MDE** (Markdown Editor) — a lightweight cross-platform (macOS / Windows / Linux)
 Markdown viewer & editor built with **Tauri 2** (Rust) + **TypeScript**.
 
+## Screenshots
+
+Split view (source + live preview), dark and light themes:
+
+![MDE in split view, dark theme](docs/screenshots/dark-split.png)
+
+![MDE in split view, light theme](docs/screenshots/light-split.png)
+
+Preview with GitHub-flavored rendering and syntax-highlighted code blocks:
+
+![Rendered preview with highlighted Python and C code](docs/screenshots/preview-highlight.png)
+
+The tag-library palette — one-click insertion of every Markdown construct:
+
+![Tag library sidebar palette](docs/screenshots/palette.png)
+
 ## Features
 
 - **Source + Preview** with three view modes: split (synced scroll), source-only,
