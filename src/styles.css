@@ -11,6 +11,18 @@
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+body[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f3f4f6;
+  --panel-2: #e8eaed;
+  --ink: #1f2328;
+  --muted: #6e7781;
+  --accent: #0969da;
+  --line: #d0d7de;
+  --danger: #cf222e;
+  --ok: #1a7f37;
+}
+
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); overflow: hidden; }

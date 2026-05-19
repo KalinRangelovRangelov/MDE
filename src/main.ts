@@ -1,6 +1,6 @@
 import "./styles.css";
 import { Editor } from "./editor";
-import { renderMarkdown } from "./preview";
+import { renderMarkdown, setCodeTheme, type Theme } from "./preview";
 import { TabManager, isDirty } from "./tabs";
 import { toolbar, palette } from "./library";
 
@@ -39,8 +39,23 @@ type ViewMode = "split" | "source" | "preview";
 let mode: ViewMode = "split";
 let paletteVisible = true;
 
+let theme: Theme = localStorage.getItem("mde-theme") === "light" ? "light" : "dark";
+let themeBtn: HTMLButtonElement | undefined;
+
+function applyTheme(t: Theme) {
+  theme = t;
+  document.body.dataset.theme = t;
+  editor.setTheme(t);
+  setCodeTheme(t);
+  localStorage.setItem("mde-theme", t);
+  if (themeBtn) {
+    themeBtn.textContent = t === "dark" ? "☀ Light" : "☾ Dark";
+    themeBtn.title = t === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  }
+}
+
 const tabs = new TabManager(() => renderTabs());
-const editor = new Editor($("editor"), tabs.active.doc, onEditorChange);
+const editor = new Editor($("editor"), tabs.active.doc, onEditorChange, theme);
 
 let renderTimer: number | undefined;
 function onEditorChange(doc: string) {
@@ -140,6 +155,11 @@ function buildToolbar() {
     seg.appendChild(b);
   });
   toolbarEl.appendChild(seg);
+
+  // Theme toggle, pinned to the top-right end of the toolbar.
+  themeBtn = iconBtn("", () => applyTheme(theme === "dark" ? "light" : "dark"));
+  toolbarEl.appendChild(themeBtn);
+
   setMode(mode);
 }
 
@@ -278,6 +298,7 @@ function escapeHtml(s: string): string {
 // ---- Boot -----------------------------------------------------------------
 buildToolbar();
 buildPalette();
+applyTheme(theme);
 renderTabs();
 updatePreview();
 editor.focus();

@@ -2,7 +2,21 @@ import MarkdownIt from "markdown-it";
 import taskLists from "markdown-it-task-lists";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
-import "highlight.js/styles/github-dark.css";
+import darkHljs from "highlight.js/styles/github-dark.css?inline";
+import lightHljs from "highlight.js/styles/github.css?inline";
+
+export type Theme = "dark" | "light";
+
+/** Swap the syntax-highlighting stylesheet for the active UI theme. */
+export function setCodeTheme(theme: Theme): void {
+  let style = document.getElementById("hljs-theme") as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "hljs-theme";
+    document.head.appendChild(style);
+  }
+  style.textContent = theme === "dark" ? darkHljs : lightHljs;
+}
 
 // GitHub-Flavored Markdown: tables, strikethrough and autolinks are built in;
 // task lists are added via the plugin. Fenced code is syntax-highlighted.

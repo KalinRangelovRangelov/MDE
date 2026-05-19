@@ -1,7 +1,7 @@
-# Markdown Editor
+# MDE
 
-A lightweight cross-platform (macOS / Windows / Linux) Markdown viewer & editor
-built with **Tauri 2** (Rust) + **TypeScript**.
+**MDE** (Markdown Editor) — a lightweight cross-platform (macOS / Windows / Linux)
+Markdown viewer & editor built with **Tauri 2** (Rust) + **TypeScript**.
 
 ## Features
 

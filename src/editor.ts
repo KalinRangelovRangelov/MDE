@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
@@ -18,8 +18,14 @@ export interface SnippetSpec {
 /** Thin wrapper around a CodeMirror 6 view with Markdown-aware editing. */
 export class Editor {
   readonly view: EditorView;
+  private themeComp = new Compartment();
 
-  constructor(parent: HTMLElement, doc: string, onChange: (doc: string) => void) {
+  constructor(
+    parent: HTMLElement,
+    doc: string,
+    onChange: (doc: string) => void,
+    theme: "dark" | "light" = "dark",
+  ) {
     this.view = new EditorView({
       parent,
       state: EditorState.create({
@@ -29,7 +35,8 @@ export class Editor {
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown({ codeLanguages: languages }),
-          oneDark,
+          // `[]` (no theme) = CodeMirror's default light styling.
+          this.themeComp.of(theme === "dark" ? oneDark : []),
           EditorView.lineWrapping,
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChange(u.state.doc.toString());
@@ -53,6 +60,12 @@ export class Editor {
 
   focus(): void {
     this.view.focus();
+  }
+
+  setTheme(theme: "dark" | "light"): void {
+    this.view.dispatch({
+      effects: this.themeComp.reconfigure(theme === "dark" ? oneDark : []),
+    });
   }
 
   /** Insert or wrap text from a tag-library snippet at the current selection. */

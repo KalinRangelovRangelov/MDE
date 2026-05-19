@@ -9,4 +9,7 @@ declare module "markdown-it-task-lists" {
   export default plugin;
 }
 
-declare module "highlight.js/styles/github-dark.css";
+declare module "*.css?inline" {
+  const css: string;
+  export default css;
+}
