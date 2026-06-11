@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::Duration;
 
+use serde::Serialize;
 use tauri::{Emitter, Manager};
 
 /// Holds a file path captured before the frontend was ready to receive events,
@@ -32,6 +34,103 @@ fn write_file(path: String, content: String) -> Result<(), String> {
 #[tauri::command]
 fn get_pending_file(state: tauri::State<PendingFile>) -> Option<String> {
     state.0.lock().unwrap().take()
+}
+
+/// Open a URL in the OS default browser. The frontend intercepts preview-link
+/// clicks and calls this so links never navigate the webview itself (a desktop
+/// window has no back button). The scheme allowlist keeps `file:`/arbitrary
+/// schemes from reaching the OS opener.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    let url = url.trim();
+    let ok = ["http://", "https://", "mailto:"].iter().any(|s| url.starts_with(s));
+    if !ok {
+        return Err(format!("Refusing to open unsupported URL: {url}"));
+    }
+    open::that(url).map_err(|e| format!("Could not open “{url}”: {e}"))
+}
+
+/// A document fetched from the web: its text, a tab name, and the final URL
+/// (after redirects/blob-rewrite) so the preview can resolve relative images.
+#[derive(Serialize)]
+struct FetchedDoc {
+    content: String,
+    name: String,
+    url: String,
+}
+
+/// Rewrite a GitHub *blob* page URL to its raw counterpart so a pasted
+/// `github.com/.../blob/...` link fetches markdown instead of an HTML page.
+/// Any other URL is returned unchanged.
+fn rewrite_github_blob(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("https://github.com/") {
+        // rest = "{user}/{repo}/blob/{branch}/{path...}"
+        let mut parts = rest.splitn(4, '/');
+        if let (Some(user), Some(repo), Some("blob"), Some(tail)) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        {
+            return format!("https://raw.githubusercontent.com/{user}/{repo}/{tail}");
+        }
+    }
+    url.to_string()
+}
+
+/// Derive a tab name from a URL's last non-empty path segment (query/fragment
+/// stripped). Falls back to "Untitled" when there is nothing usable.
+fn name_from_url(url: &str) -> String {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url)
+        .trim_end_matches('/');
+    match path.rsplit('/').next() {
+        Some(s) if !s.is_empty() && !s.contains("://") => s.to_string(),
+        _ => "Untitled".to_string(),
+    }
+}
+
+/// Fetch a markdown document over HTTP(S) and return its text plus a tab name.
+/// Runs in Rust (not the webview) so the page CSP never applies to the request.
+#[tauri::command]
+async fn fetch_url(url: String) -> Result<FetchedDoc, String> {
+    let url = url.trim();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Only http:// and https:// URLs are supported.".into());
+    }
+    let fetch_url = rewrite_github_blob(url);
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .user_agent(concat!("MDE/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| format!("Could not start request: {e}"))?;
+
+    let resp = client
+        .get(&fetch_url)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach “{url}”: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        return Err(format!(
+            "Server returned {} for “{url}”.",
+            status.canonical_reason().unwrap_or(status.as_str())
+        ));
+    }
+
+    // Use the final URL (after redirects) to name the tab and as the image base.
+    let final_url = resp.url().as_str().to_string();
+    let content = resp
+        .text()
+        .await
+        .map_err(|e| format!("Could not read response from “{url}”: {e}"))?;
+
+    Ok(FetchedDoc {
+        content,
+        name: name_from_url(&final_url),
+        url: final_url,
+    })
 }
 
 /// Treat an arg as a file to open only if it exists and is not a flag.
@@ -95,7 +194,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_file,
             write_file,
-            get_pending_file
+            get_pending_file,
+            fetch_url,
+            open_external
         ]);
 
     builder

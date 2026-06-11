@@ -1,6 +1,6 @@
 import "./styles.css";
 import { Editor } from "./editor";
-import { renderMarkdown, setCodeTheme, type Theme } from "./preview";
+import { renderMarkdown, setCodeTheme, isExternal, type Theme } from "./preview";
 import { TabManager, isDirty, dirname } from "./tabs";
 import { toolbar, palette } from "./library";
 
@@ -22,6 +22,25 @@ async function readFile(path: string): Promise<string> {
 async function writeFile(path: string, content: string): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("write_file", { path, content });
+}
+async function fetchUrl(url: string): Promise<{ content: string; name: string; url: string }> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("fetch_url", { url });
+}
+// Open a link in the OS default browser. Used by the preview click handler so
+// links never navigate the app's own webview. Falls back to window.open in a
+// plain browser (dev) so testing still works.
+async function openExternal(href: string): Promise<void> {
+  if (!inTauri) {
+    window.open(href, "_blank", "noopener");
+    return;
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_external", { url: href });
+  } catch (e) {
+    toast(String(e), "error");
+  }
 }
 
 // ---- DOM refs -------------------------------------------------------------
@@ -66,8 +85,8 @@ function onEditorChange(doc: string) {
 }
 
 function updatePreview() {
-  const p = tabs.active.path;
-  previewEl.innerHTML = renderMarkdown(tabs.active.doc, p ? dirname(p) : undefined);
+  const t = tabs.active;
+  previewEl.innerHTML = renderMarkdown(t.doc, t.path ? dirname(t.path) : undefined, t.sourceUrl);
   if (inTauri) rewriteLocalImages();
 }
 
@@ -150,8 +169,8 @@ function buildToolbar() {
     toolbarEl.appendChild(b);
   }
 
-  toolbarEl.append(sep(), iconBtn("📂 Open", openFile), iconBtn("💾 Save", () => saveFile(false)),
-    iconBtn("Save As", () => saveFile(true)));
+  toolbarEl.append(sep(), iconBtn("📂 Open", openFile), iconBtn("🌐 URL", openFromUrl),
+    iconBtn("💾 Save", () => saveFile(false)), iconBtn("Save As", () => saveFile(true)));
 
   const spacer = document.createElement("div");
   spacer.className = "spacer";
@@ -218,6 +237,31 @@ function setMode(m: ViewMode) {
   });
 }
 
+// ---- Preview link handling ------------------------------------------------
+// Anchor clicks would otherwise navigate the webview itself to the target,
+// replacing the app with no way back. Intercept here: open external links in
+// the OS browser, and never let the webview navigate. One delegated listener
+// suffices — `previewEl` persists; updatePreview only swaps its innerHTML.
+previewEl.addEventListener("click", (e) => {
+  const a = (e.target as HTMLElement).closest("a");
+  const href = a?.getAttribute("href");
+  if (!href) return;
+  e.preventDefault(); // never let the webview navigate away
+  if (href.startsWith("#")) return; // in-doc anchor: no-op (no heading ids today)
+  if (isExternal(href)) {
+    openExternal(href);
+  } else if (tabs.active.sourceUrl) {
+    // Relative link in a web-sourced doc: resolve against the source URL.
+    try {
+      openExternal(new URL(href, tabs.active.sourceUrl).href);
+    } catch {
+      /* malformed — ignore */
+    }
+  }
+  // Relative links in a local doc are a no-op for now — opening linked local
+  // files in a new tab is a possible future enhancement.
+});
+
 // ---- Scroll sync (split mode) --------------------------------------------
 editorPane.addEventListener("scroll", () => {
   if (mode !== "split") return;
@@ -253,6 +297,31 @@ async function openPath(path: string) {
     const content = await readFile(path);
     tabs.openOrFocus(path, content);
     editor.setDoc(content);
+    updatePreview();
+    editor.focus();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+// Open a markdown document from a URL. The fetch runs in Rust (see fetch_url),
+// so the webview CSP never applies. The result loads as an untitled tab — the
+// URL is only the source, so saving uses the normal Save-As flow.
+//
+// Known limitation: relative image paths in the fetched markdown have no local
+// base and won't resolve; absolute https: image URLs render fine.
+async function openFromUrl() {
+  if (!inTauri) {
+    toast("Desktop features need the Tauri app (run `npm run tauri dev`).", "error");
+    return;
+  }
+  const url = await promptUrl();
+  if (!url) return;
+  try {
+    const { content, name, url: sourceUrl } = await fetchUrl(url);
+    const tab = tabs.newTab(null, content, name);
+    tab.sourceUrl = sourceUrl; // used as the preview base for relative images/links
+    editor.setDoc(tab.doc);
     updatePreview();
     editor.focus();
   } catch (e) {
@@ -302,7 +371,7 @@ window.addEventListener("keydown", (e) => {
   if (!mod) return;
   const k = e.key.toLowerCase();
   if (k === "s") { e.preventDefault(); saveFile(e.shiftKey); }
-  else if (k === "o") { e.preventDefault(); openFile(); }
+  else if (k === "o") { e.preventDefault(); e.shiftKey ? openFromUrl() : openFile(); }
   else if (k === "n") { e.preventDefault(); tabs.newTab(); editor.setDoc(""); updatePreview(); }
   else if (k === "w") { e.preventDefault(); closeTab(tabs.activeId); }
   else if (k === "1") { e.preventDefault(); setMode("source"); }
@@ -322,6 +391,61 @@ if (inTauri) {
       });
       if (!quit) event.preventDefault();
     });
+  });
+}
+
+// ---- URL prompt modal -----------------------------------------------------
+// A small custom modal (window.prompt is unreliable in macOS WKWebView).
+// Resolves to the trimmed URL, or null if cancelled.
+function promptUrl(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+
+    const card = document.createElement("div");
+    card.className = "modal-card";
+
+    const title = document.createElement("h2");
+    title.textContent = "Open from URL";
+
+    const input = document.createElement("input");
+    input.type = "url";
+    input.placeholder = "https://example.com/README.md";
+
+    const row = document.createElement("div");
+    row.className = "modal-actions";
+    const cancel = document.createElement("button");
+    cancel.textContent = "Cancel";
+    const open = document.createElement("button");
+    open.className = "primary";
+    open.textContent = "Open";
+
+    row.append(cancel, open);
+    card.append(title, input, row);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    input.focus();
+
+    const done = (value: string | null) => {
+      window.removeEventListener("keydown", onKey, true);
+      overlay.remove();
+      resolve(value);
+    };
+    const submit = () => {
+      const v = input.value.trim();
+      done(v || null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); done(null); }
+      else if (e.key === "Enter") { e.preventDefault(); submit(); }
+    };
+
+    window.addEventListener("keydown", onKey, true);
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) done(null);
+    });
+    cancel.onclick = () => done(null);
+    open.onclick = submit;
   });
 }
 

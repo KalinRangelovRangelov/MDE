@@ -119,3 +119,21 @@ body { background: var(--bg); color: var(--ink); overflow: hidden; }
   box-shadow: 0 6px 20px rgba(0,0,0,.4); }
 .toast.error { border-color: var(--danger); }
 .toast.ok { border-color: var(--ok); }
+
+/* Modal (Open from URL) */
+.modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex;
+  align-items: center; justify-content: center; background: rgba(0,0,0,.5); }
+.modal-card { background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 18px; width: min(480px, 90vw);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.modal-card h2 { margin: 0 0 12px; font-size: 15px; color: var(--ink); }
+.modal-card input { width: 100%; box-sizing: border-box; padding: 8px 10px;
+  font-size: 13px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; outline: none; }
+.modal-card input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal-actions button { border: 1px solid var(--line); background: none; color: var(--ink);
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.modal-actions button:hover { background: var(--line); }
+.modal-actions button.primary { background: var(--accent); color: #06243f; border-color: var(--accent); }
+.modal-actions button.primary:hover { filter: brightness(1.08); }

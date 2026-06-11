@@ -59,7 +59,9 @@ const md = new MarkdownIt({
 // data-* attribute means DOMPurify preserves it and we never touch its
 // URL-scheme allowlist. This file stays Tauri-agnostic for unit tests.
 
-function isExternal(src: string): boolean {
+/** True when a link/image target has a URL scheme (http:, mailto:, …) or is
+ *  protocol-relative (`//host`) — i.e. points outside the local document. */
+export function isExternal(src: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
 }
 function isAbsolute(src: string): boolean {
@@ -81,18 +83,30 @@ const defaultImage = md.renderer.rules.image!;
 md.renderer.rules.image = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   const src = token.attrGet("src");
-  if (src && env?.baseDir && !isExternal(src) && !src.startsWith("data:")) {
-    token.attrSet("data-rel-src", resolvePath(env.baseDir, src));
+  if (src && !isExternal(src) && !src.startsWith("data:")) {
+    if (env?.baseUrl) {
+      // Web-sourced doc: resolve against the source URL to an absolute https
+      // URL the webview can load directly (CSP already allows https: images).
+      try {
+        token.attrSet("src", new URL(src, env.baseUrl).href);
+      } catch {
+        /* malformed base — leave src untouched */
+      }
+    } else if (env?.baseDir) {
+      // Local file: stash an absolute path for the Tauri asset-protocol rewrite.
+      token.attrSet("data-rel-src", resolvePath(env.baseDir, src));
+    }
   }
   return defaultImage(tokens, idx, options, env, self);
 };
 
 /**
  * Render Markdown source to sanitized HTML safe to inject into the preview.
- * `baseDir` (the open file's directory) enables local-image resolution.
+ * `baseDir` (the open file's directory) enables local-image resolution;
+ * `baseUrl` (a web doc's source URL) resolves relative images to absolute URLs.
  */
-export function renderMarkdown(source: string, baseDir?: string): string {
-  const raw = md.render(source, baseDir ? { baseDir } : {});
+export function renderMarkdown(source: string, baseDir?: string, baseUrl?: string): string {
+  const raw = md.render(source, { baseDir, baseUrl });
   return DOMPurify.sanitize(raw, {
     ADD_ATTR: ["target"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],

@@ -18,6 +18,12 @@ tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# HTTP client for "Open from URL". rustls-tls avoids a system OpenSSL dependency
+# so cross-platform packaging stays self-contained.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# Opens preview links in the OS default browser (links must never navigate the
+# app's own webview — a desktop window has no back button).
+open = "5"
 
 # macOS routes file-association opens to the single Launch-Services instance
 # via RunEvent::Opened; the single-instance plugin breaks that, so it is

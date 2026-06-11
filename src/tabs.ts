@@ -6,6 +6,7 @@ export interface Tab {
   name: string;
   doc: string;
   savedDoc: string; // last persisted content, for dirty comparison
+  sourceUrl?: string; // origin URL for docs opened from the web (not a save target)
 }
 
 export function isDirty(t: Tab): boolean {
@@ -40,8 +41,14 @@ export class TabManager {
     };
   }
 
-  newTab(path: string | null = null, content = ""): Tab {
+  /**
+   * Open a new tab. `name` overrides the derived label without giving the tab a
+   * `path` — used by "Open from URL", where the document is untitled (saving
+   * triggers Save-As) but should still show the source filename.
+   */
+  newTab(path: string | null = null, content = "", name?: string): Tab {
     const tab = this.makeTab(path, content);
+    if (name) tab.name = name;
     this.tabs.push(tab);
     this.activeId = tab.id;
     this.onChange();
