@@ -58,6 +58,7 @@ export const palette: { category: string; items: LibraryItem[] }[] = [
     category: "Blocks",
     items: [
       { label: "Blockquote", spec: { insert: "> $", block: true } },
+      { label: "Quote tag", hint: "[quote]…[/quote]", spec: { insert: "[quote]\n$\n[/quote]", block: true } },
       { label: "Code block", spec: { insert: "```language\n$\n```", block: true } },
       { label: "Horizontal rule", spec: { insert: "---", block: true } },
       {

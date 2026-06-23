@@ -100,13 +100,46 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   return defaultImage(tokens, idx, options, env, self);
 };
 
+// ---- BBCode-style quote tags ----------------------------------------------
+// Expand `[quote] … [/quote]` blocks into Markdown blockquotes before parsing,
+// so their contents get full Markdown rendering and nest naturally. Markers on
+// their own line open/close a block; a `[quote]text[/quote]` on one line is a
+// single quoted line. Markers inside fenced code blocks are left untouched.
+export function expandQuoteTags(source: string): string {
+  const out: string[] = [];
+  let depth = 0;
+  let fence: string | null = null;
+  const emit = (line: string) => out.push(depth > 0 ? "> ".repeat(depth) + line : line);
+
+  for (const line of source.split("\n")) {
+    const trimmed = line.trim();
+    if (fence !== null) {
+      emit(line);
+      if (trimmed.startsWith(fence)) fence = null;
+      continue;
+    }
+    const open = trimmed.match(/^(`{3,}|~{3,})/);
+    if (open) {
+      emit(line);
+      fence = open[1];
+      continue;
+    }
+    if (/^\[quote\]$/i.test(trimmed)) { depth++; continue; }
+    if (/^\[\/quote\]$/i.test(trimmed)) { if (depth > 0) depth--; continue; }
+    const wrap = trimmed.match(/^\[quote\]([\s\S]*?)\[\/quote\]$/i);
+    if (wrap) { out.push("> ".repeat(depth + 1) + wrap[1].trim()); continue; }
+    emit(line);
+  }
+  return out.join("\n");
+}
+
 /**
  * Render Markdown source to sanitized HTML safe to inject into the preview.
  * `baseDir` (the open file's directory) enables local-image resolution;
  * `baseUrl` (a web doc's source URL) resolves relative images to absolute URLs.
  */
 export function renderMarkdown(source: string, baseDir?: string, baseUrl?: string): string {
-  const raw = md.render(source, { baseDir, baseUrl });
+  const raw = md.render(expandQuoteTags(source), { baseDir, baseUrl });
   return DOMPurify.sanitize(raw, {
     ADD_ATTR: ["target"],
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],

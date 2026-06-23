@@ -74,6 +74,30 @@ describe("renderMarkdown (GFM)", () => {
     expect(html).not.toContain("data-rel-src");
   });
 
+  it("renders [quote] tags as blockquotes with Markdown inside", () => {
+    const html = renderMarkdown("[quote]\nHello **there**\n[/quote]");
+    expect(html).toContain("<blockquote>");
+    expect(html).toContain("<strong>there</strong>");
+  });
+
+  it("renders a single-line [quote]…[/quote]", () => {
+    const html = renderMarkdown("[quote]one line[/quote]");
+    expect(html).toContain("<blockquote>");
+    expect(html).toContain("one line");
+  });
+
+  it("nests [quote] tags", () => {
+    const html = renderMarkdown("[quote]\nouter\n[quote]\ninner\n[/quote]\n[/quote]");
+    // A blockquote inside a blockquote.
+    expect(html).toMatch(/<blockquote>[\s\S]*<blockquote>/);
+  });
+
+  it("leaves [quote] inside fenced code untouched", () => {
+    const html = renderMarkdown("```\n[quote]\nx\n[/quote]\n```");
+    expect(html).not.toContain("<blockquote>");
+    expect(html).toContain("[quote]");
+  });
+
   it("strips dangerous markup", () => {
     const html = renderMarkdown('<script>alert(1)</script>\n\n[x](javascript:alert(1))');
     // No executable script survives sanitization.
