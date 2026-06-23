@@ -3,6 +3,7 @@ import { Editor } from "./editor";
 import { renderMarkdown, setCodeTheme, isExternal, type Theme } from "./preview";
 import { TabManager, isDirty, dirname } from "./tabs";
 import { toolbar, palette } from "./library";
+import { FileTree, type DirEntry } from "./filetree";
 
 // ---- Tauri bridges (guarded so the UI still runs in a plain browser) -------
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -27,6 +28,18 @@ async function fetchUrl(url: string): Promise<{ content: string; name: string; u
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke("fetch_url", { url });
 }
+async function readDir(path: string): Promise<DirEntry[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DirEntry[]>("read_dir", { path });
+}
+async function createFile(path: string): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("create_file", { path });
+}
+async function createDir(path: string): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("create_dir", { path });
+}
 // Open a link in the OS default browser. Used by the preview click handler so
 // links never navigate the app's own webview. Falls back to window.open in a
 // plain browser (dev) so testing still works.
@@ -47,6 +60,7 @@ async function openExternal(href: string): Promise<void> {
 const $ = (id: string) => document.getElementById(id)!;
 const tabbarEl = $("tabbar");
 const toolbarEl = $("toolbar");
+const filetreeEl = $("filetree");
 const paletteEl = $("palette");
 const panesEl = $("panes");
 const editorPane = $("editor-pane");
@@ -57,6 +71,7 @@ const previewEl = $("preview");
 type ViewMode = "split" | "source" | "preview";
 let mode: ViewMode = "split";
 let paletteVisible = true;
+let treeVisible = true;
 
 let theme: Theme = localStorage.getItem("mde-theme") === "light" ? "light" : "dark";
 let themeBtn: HTMLButtonElement | undefined;
@@ -75,6 +90,14 @@ function applyTheme(t: Theme) {
 
 const tabs = new TabManager(() => renderTabs());
 const editor = new Editor($("editor"), tabs.active.doc, onEditorChange, theme);
+
+const tree = new FileTree(filetreeEl, {
+  readDir,
+  onOpenFolder: openFolder,
+  onOpenFile: openPath,
+  onNewFile: newFileInDir,
+  onNewFolder: newFolderInDir,
+});
 
 let renderTimer: number | undefined;
 function onEditorChange(doc: string) {
@@ -175,6 +198,11 @@ function buildToolbar() {
   const spacer = document.createElement("div");
   spacer.className = "spacer";
   toolbarEl.appendChild(spacer);
+
+  toolbarEl.appendChild(iconBtn("🗂 Files", () => {
+    treeVisible = !treeVisible;
+    filetreeEl.classList.toggle("hidden", !treeVisible);
+  }));
 
   toolbarEl.appendChild(iconBtn("☰ Library", () => {
     paletteVisible = !paletteVisible;
@@ -329,6 +357,66 @@ async function openFromUrl() {
   }
 }
 
+// ---- Folder / file-tree operations ----------------------------------------
+// Build a child path under `dir`, picking the separator already in use so this
+// works on Windows (`\`) and POSIX (`/`) without importing a path module.
+function joinPath(dir: string, name: string): string {
+  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+  return dir.replace(/[\\/]+$/, "") + sep + name;
+}
+
+// Pick a folder to browse in the tree, and remember it for next launch.
+async function openFolder() {
+  const path = await tauri(async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    return open({ directory: true });
+  }, null);
+  if (!path || typeof path !== "string") return;
+  await tree.open(path);
+  localStorage.setItem("mde-folder", path);
+}
+
+async function newFileInDir(dir: string) {
+  const raw = await promptText({ title: "New file", placeholder: "name.md" });
+  let name = raw?.trim();
+  if (!name) return;
+  if (!/\.[^.\\/]+$/.test(name)) name += ".md"; // default to .md when no extension
+  const path = joinPath(dir, name);
+  try {
+    await createFile(path);
+    await tree.refresh(dir);
+    openPath(path); // open the new (empty) file in a tab
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+async function newFolderInDir(dir: string) {
+  const raw = await promptText({ title: "New folder", placeholder: "folder name" });
+  const name = raw?.trim();
+  if (!name) return;
+  try {
+    await createDir(joinPath(dir, name));
+    await tree.refresh(dir);
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+// Reopen the last-used folder on launch (desktop only). Verify it still exists
+// first so a deleted/moved folder is forgotten rather than shown empty.
+async function restoreFolder() {
+  if (!inTauri) return;
+  const saved = localStorage.getItem("mde-folder");
+  if (!saved) return;
+  try {
+    await readDir(saved);
+    await tree.open(saved);
+  } catch {
+    localStorage.removeItem("mde-folder");
+  }
+}
+
 // Wire up OS "Open with" / double-click delivery. Registers the live event
 // listener before draining any path captured during cold start, so a path
 // arriving before the webview was ready is never lost.
@@ -394,10 +482,24 @@ if (inTauri) {
   });
 }
 
-// ---- URL prompt modal -----------------------------------------------------
+// ---- Text prompt modal ----------------------------------------------------
 // A small custom modal (window.prompt is unreliable in macOS WKWebView).
-// Resolves to the trimmed URL, or null if cancelled.
+// Resolves to the trimmed value, or null if cancelled. Used for "Open from
+// URL" and for naming new files/folders.
 function promptUrl(): Promise<string | null> {
+  return promptText({
+    title: "Open from URL",
+    placeholder: "https://example.com/README.md",
+    type: "url",
+  });
+}
+
+function promptText(opts: {
+  title: string;
+  placeholder?: string;
+  value?: string;
+  type?: "text" | "url";
+}): Promise<string | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
@@ -406,11 +508,12 @@ function promptUrl(): Promise<string | null> {
     card.className = "modal-card";
 
     const title = document.createElement("h2");
-    title.textContent = "Open from URL";
+    title.textContent = opts.title;
 
     const input = document.createElement("input");
-    input.type = "url";
-    input.placeholder = "https://example.com/README.md";
+    input.type = opts.type ?? "text";
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    if (opts.value) input.value = opts.value;
 
     const row = document.createElement("div");
     row.className = "modal-actions";
@@ -418,7 +521,7 @@ function promptUrl(): Promise<string | null> {
     cancel.textContent = "Cancel";
     const open = document.createElement("button");
     open.className = "primary";
-    open.textContent = "Open";
+    open.textContent = "OK";
 
     row.append(cancel, open);
     card.append(title, input, row);
@@ -471,3 +574,4 @@ renderTabs();
 updatePreview();
 editor.focus();
 initFileAssociation();
+restoreFolder();

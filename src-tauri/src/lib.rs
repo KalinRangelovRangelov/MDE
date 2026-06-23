@@ -29,6 +29,63 @@ fn write_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| format!("Could not save “{path}”: {e}"))
 }
 
+/// One entry in a directory listing returned by `read_dir`.
+#[derive(Serialize)]
+struct DirEntry {
+    name: String,
+    path: String,
+    is_dir: bool,
+}
+
+/// List the immediate children of a directory. The file-tree lazy-loads each
+/// folder on expand, so this returns a single level only. Dotfiles (`.git`,
+/// `.DS_Store`, …) are skipped to keep the tree readable. Folders sort before
+/// files, then case-insensitively by name.
+#[tauri::command]
+fn read_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let mut entries: Vec<DirEntry> = Vec::new();
+    let iter = fs::read_dir(&path).map_err(|e| format!("Could not read folder “{path}”: {e}"))?;
+    for entry in iter {
+        let entry = entry.map_err(|e| format!("Could not read folder “{path}”: {e}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        // file_type() avoids a stat() on most platforms; default to "not a dir".
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        entries.push(DirEntry {
+            name,
+            path: entry.path().to_string_lossy().into_owned(),
+            is_dir,
+        });
+    }
+    entries.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
+/// Create an empty file. Errors if a file or folder already exists at `path`,
+/// so an accidental click never clobbers existing content.
+#[tauri::command]
+fn create_file(path: String) -> Result<(), String> {
+    if Path::new(&path).exists() {
+        return Err(format!("Already exists: {path}"));
+    }
+    fs::write(&path, "").map_err(|e| format!("Could not create “{path}”: {e}"))
+}
+
+/// Create a directory. Errors if anything already exists at `path`.
+#[tauri::command]
+fn create_dir(path: String) -> Result<(), String> {
+    if Path::new(&path).exists() {
+        return Err(format!("Already exists: {path}"));
+    }
+    fs::create_dir(&path).map_err(|e| format!("Could not create folder “{path}”: {e}"))
+}
+
 /// Frontend calls this once on boot to drain any path captured before the
 /// webview/JS listener existed. Returns null if none.
 #[tauri::command]
@@ -194,6 +251,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_file,
             write_file,
+            read_dir,
+            create_file,
+            create_dir,
             get_pending_file,
             fetch_url,
             open_external
