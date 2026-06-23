@@ -89,7 +89,17 @@ body { background: var(--bg); color: var(--ink); overflow: hidden; }
   border: 0; background: none; color: var(--ink); cursor: pointer;
   padding: 2px 5px; border-radius: 5px; font-size: 13px; line-height: 1;
 }
+.ft-actions button { position: relative; }
 .ft-actions button:hover { background: var(--panel-2); }
+/* Custom tooltip — native `title` tooltips don't render reliably in the webview. */
+.ft-actions button[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute; top: 100%; right: 0; margin-top: 6px;
+  white-space: nowrap; pointer-events: none; z-index: 10;
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+  padding: 3px 7px; border-radius: 5px; font-size: 11px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
 .ft-empty { color: var(--muted); padding: 8px 12px; margin: 0; }
 .ft-list { padding: 4px 0; }
 .ft-row {

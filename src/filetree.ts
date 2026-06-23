@@ -152,7 +152,8 @@ export class FileTree {
   private actionBtn(label: string, title: string, onClick: () => void): HTMLButtonElement {
     const b = document.createElement("button");
     b.textContent = label;
-    b.title = title;
+    b.title = title; // native fallback
+    b.dataset.tip = title; // CSS tooltip (native titles are unreliable in the webview)
     b.onclick = onClick;
     return b;
   }
