@@ -59,6 +59,7 @@ body { background: var(--bg); color: var(--ink); overflow: hidden; }
   padding: 5px 9px; border-radius: 6px; cursor: pointer; font-size: 13px;
 }
 #toolbar button:hover { background: var(--line); }
+#toolbar .icon { margin-right: 5px; }
 #toolbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 6px; }
 #toolbar .spacer { flex: 1; }
 #toolbar .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -91,6 +92,7 @@ body { background: var(--bg); color: var(--ink); overflow: hidden; }
 }
 .ft-actions button { position: relative; }
 .ft-actions button:hover { background: var(--panel-2); }
+.ft-actions .icon { display: block; }
 /* Custom tooltip — native `title` tooltips don't render reliably in the webview. */
 .ft-actions button[data-tip]:hover::after {
   content: attr(data-tip);
@@ -111,8 +113,11 @@ body { background: var(--bg); color: var(--ink); overflow: hidden; }
 .ft-row.muted { color: var(--muted); cursor: default; }
 .ft-row.muted:hover { background: none; }
 .ft-chevron { width: 12px; flex-shrink: 0; color: var(--muted); font-size: 10px; }
-.ft-icon { flex-shrink: 0; }
+.ft-icon { flex-shrink: 0; display: flex; }
 .ft-name { overflow: hidden; text-overflow: ellipsis; }
+
+/* Line icons (src/icons.ts) — sized to the surrounding text. */
+.icon { width: 1.15em; height: 1.15em; flex-shrink: 0; vertical-align: -0.2em; }
 
 #palette {
   width: 220px; background: var(--panel); border-left: 1px solid var(--line);

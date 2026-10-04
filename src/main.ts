@@ -4,6 +4,7 @@ import { renderMarkdown, setCodeTheme, isExternal, type Theme } from "./preview"
 import { TabManager, isDirty, dirname } from "./tabs";
 import { toolbar, palette } from "./library";
 import { FileTree, type DirEntry } from "./filetree";
+import { icon, type IconName } from "./icons";
 
 // ---- Tauri bridges (guarded so the UI still runs in a plain browser) -------
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -83,7 +84,7 @@ function applyTheme(t: Theme) {
   setCodeTheme(t);
   localStorage.setItem("mde-theme", t);
   if (themeBtn) {
-    themeBtn.textContent = t === "dark" ? "☀ Light" : "☾ Dark";
+    setIconLabel(themeBtn, t === "dark" ? "Light" : "Dark", t === "dark" ? "sun" : "moon");
     themeBtn.title = t === "dark" ? "Switch to light theme" : "Switch to dark theme";
   }
 }
@@ -192,22 +193,22 @@ function buildToolbar() {
     toolbarEl.appendChild(b);
   }
 
-  toolbarEl.append(sep(), iconBtn("📂 Open", openFile), iconBtn("🌐 URL", openFromUrl),
-    iconBtn("💾 Save", () => saveFile(false)), iconBtn("Save As", () => saveFile(true)));
+  toolbarEl.append(sep(), iconBtn("Open", openFile, "folder-open"), iconBtn("URL", openFromUrl, "globe"),
+    iconBtn("Save", () => saveFile(false), "save"), iconBtn("Save As", () => saveFile(true)));
 
   const spacer = document.createElement("div");
   spacer.className = "spacer";
   toolbarEl.appendChild(spacer);
 
-  toolbarEl.appendChild(iconBtn("🗂 Files", () => {
+  toolbarEl.appendChild(iconBtn("Files", () => {
     treeVisible = !treeVisible;
     filetreeEl.classList.toggle("hidden", !treeVisible);
-  }));
+  }, "folder-tree"));
 
-  toolbarEl.appendChild(iconBtn("☰ Library", () => {
+  toolbarEl.appendChild(iconBtn("Library", () => {
     paletteVisible = !paletteVisible;
     paletteEl.classList.toggle("hidden", !paletteVisible);
-  }));
+  }, "library"));
 
   const seg = document.createElement("div");
   seg.className = "seg";
@@ -232,11 +233,14 @@ function sep() {
   s.className = "sep";
   return s;
 }
-function iconBtn(label: string, onClick: () => void) {
+function iconBtn(label: string, onClick: () => void, iconName?: IconName) {
   const b = document.createElement("button");
-  b.textContent = label;
+  setIconLabel(b, label, iconName);
   b.onclick = onClick;
   return b;
+}
+function setIconLabel(b: HTMLButtonElement, label: string, iconName?: IconName) {
+  b.replaceChildren(...(iconName ? [icon(iconName)] : []), label);
 }
 
 function buildPalette() {

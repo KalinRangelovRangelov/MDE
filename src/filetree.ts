@@ -4,6 +4,8 @@
 // host (main.ts) injects a `readDir` function and click callbacks, so the tree
 // can be unit-tested or run in a plain browser without the desktop backend.
 
+import { icon as lineIcon, type IconName } from "./icons";
+
 export interface DirEntry {
   name: string;
   path: string;
@@ -133,25 +135,25 @@ export class FileTree {
 
     if (this.root) {
       actions.appendChild(
-        this.actionBtn("📄", "New file", () => {
+        this.actionBtn("file-plus", "New file", () => {
           if (this.targetDir) this.cb.onNewFile(this.targetDir);
         }),
       );
       actions.appendChild(
-        this.actionBtn("📁", "New folder", () => {
+        this.actionBtn("folder-plus", "New folder", () => {
           if (this.targetDir) this.cb.onNewFolder(this.targetDir);
         }),
       );
     }
-    actions.appendChild(this.actionBtn("📂", "Open folder…", this.cb.onOpenFolder));
+    actions.appendChild(this.actionBtn("folder-open", "Open folder…", this.cb.onOpenFolder));
 
     header.appendChild(actions);
     return header;
   }
 
-  private actionBtn(label: string, title: string, onClick: () => void): HTMLButtonElement {
+  private actionBtn(iconName: IconName, title: string, onClick: () => void): HTMLButtonElement {
     const b = document.createElement("button");
-    b.textContent = label;
+    b.appendChild(lineIcon(iconName));
     b.title = title; // native fallback
     b.dataset.tip = title; // CSS tooltip (native titles are unreliable in the webview)
     b.onclick = onClick;
@@ -181,7 +183,7 @@ export class FileTree {
 
     const icon = document.createElement("span");
     icon.className = "ft-icon";
-    icon.textContent = entry.is_dir ? "📁" : "📄";
+    icon.appendChild(lineIcon(entry.is_dir ? "folder" : "file"));
 
     const name = document.createElement("span");
     name.className = "ft-name";
